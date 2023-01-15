@@ -1,5 +1,7 @@
 import json
 
+from botocore.exceptions import ClientError
+
 
 class BlobS3Client:
 
@@ -19,6 +21,16 @@ class BlobS3Client:
             HttpMethod='PUT'
         )
 
+    def is_uploaded(self, key):
+        try:
+            self._client.head_object(
+                Bucket=self._bucket_name,
+                Key=key
+            )
+            return True
+        except ClientError:
+            return False
+
 
 class BlobDynamoDBClient:
 
@@ -33,6 +45,19 @@ class BlobDynamoDBClient:
                 'blob_id': {'S': blob_id},
                 'callback_url': {'S': callback_url},
                 'status': {'S': status}
+            }
+        )
+
+    def update_status(self, blob_id, status):
+        return self._client.update_item(
+            TableName=self._table_name,
+            Key={'blob_id': {'S': blob_id}},
+            UpdateExpression='SET #status = :status',
+            ExpressionAttributeValues={
+                ':status': {'S': status}
+            },
+            ExpressionAttributeNames={
+                '#status': 'status'
             }
         )
 

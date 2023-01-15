@@ -39,8 +39,10 @@ class InitializeUploadListening:
 
 class UrlValidator:
 
-    def __init__(self):
-        self._validate = URL(schemes=['http', 'https'])
+    def __init__(self, schemes=None):
+        if schemes is None:
+            schemes = ['http', 'https']
+        self._validate = URL(schemes=schemes)
 
     def is_valid_url(self, url):
         try:
@@ -48,3 +50,15 @@ class UrlValidator:
             return True
         except ValidationError:
             return False
+
+
+class CheckUploading:
+
+    def __init__(self, blob_s3_client, blob_dynamodb_client):
+        self._blob_s3_client = blob_s3_client
+        self._blob_dynamodb_client = blob_dynamodb_client
+
+    def __call__(self, blob_id):
+        if self._blob_s3_client.is_uploaded(blob_id):
+            return
+        self._blob_dynamodb_client.update_status(blob_id, RecognitionStatus.UPLOAD_TIMED_OUT.value)

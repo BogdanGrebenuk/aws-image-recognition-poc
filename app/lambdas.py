@@ -1,7 +1,7 @@
 from collections import namedtuple
 from functools import wraps
 from http import HTTPStatus
-from json import dumps
+from json import dumps, loads
 from uuid import uuid4
 
 from .exception import CallbackUrlIsNotValid
@@ -50,4 +50,10 @@ def initialize_upload_listening_handler(
 
 
 def get_callback_url_from_event(event):
-    return event.get('body', {}).get('callback_url', '').strip()
+    body = loads(event.get('body'))
+    return body.get('callback_url', '').strip()
+
+
+def check_uploading_handler(event, context, check_uploading):
+    blob_id = event.get('blob_id')
+    check_uploading(blob_id)

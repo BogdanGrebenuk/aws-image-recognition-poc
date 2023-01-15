@@ -3,6 +3,7 @@ service: staircase-test-task
 plugins:
   - serverless-python-requirements
   - serverless-step-functions
+
 package:
   exclude:
     - node_modules/**
@@ -17,6 +18,8 @@ custom:
   stage: dev
   blobsBucketName: blobs-bucket-${self:custom.stage}
   blobsTableName: blobs-table-${self:custom.stage}
+  presignedUrlTTL: 30
+  uploadingWaitingTime: 40
   # todo: move everything related to this section
   # todo: naming
 
@@ -29,13 +32,16 @@ provider:
   environment:
     blobsBucketName: ${self:custom.blobsBucketName}
     blobsTableName: ${self:custom.blobsTableName}
+    presignedUrlTTL: ${self:custom.presignedUrlTTL}
+    uploadingWaitingTime: ${self:custom.uploadingWaitingTime}
+    uploadingStepFunctionArn: ${self:resources.Outputs.UploadingStepFunction.Value}
   iamRoleStatements:
     - Effect: Allow
       Action:
         - s3:PutObject
         - s3:GetObject
+        - s3:ListBucket
       Resource: arn:aws:s3:::${self:custom.blobsBucketName}/*
-#      Resource: "*"
     - Effect: Allow
       Action:
         - "rekognition:*"
@@ -47,41 +53,71 @@ provider:
         - dynamodb:UpdateItem
       Resource:
         - { "Fn::GetAtt": ["BlobsTable", "Arn"] }
+    - Effect: Allow
+      Action:
+        - states:StartExecution
+      Resource:
+        - "*"
 
 functions:
-  createPresignedUrl:
-    handler: app.handler.create_presigned_url
+  initializeUploadListening:
+    handler: app.handler.initialize_upload_listening_handler
     httpApi:
       payload: "2.0"
     events:
       - httpApi:
           path: /blobs
           method: POST
+  checkUploading:
+    handler: app.handler.check_uploading_handler
+
   imageHasBeenUploaded:
-    handler: app.handler.image_has_been_uploaded
+    handler: app.handler.image_has_been_uploaded_handler
     events:
       - s3:
           bucket: ${self:custom.blobsBucketName}
           event: s3:ObjectCreated:*
-  testCallback: # todo: remove it
-    handler: app.handler.test_callback
-    httpApi:
-      payload: "2.0"
-    events:
-      - httpApi:
-          path: /callback
-          method: POST
-  getRecognitionResults:
-    handler: app.handler.get_recognition_result
-    httpApi:
-      payload: "2.0"
-    events:
-      - httpApi:
-          path: /blobs/{blob_id}
-          method: GET
+#  testCallback: # todo: remove it
+#    handler: app.handler.test_callback
+#    httpApi:
+#      payload: "2.0"
+#    events:
+#      - httpApi:
+#          path: /callback
+#          method: POST
+#  getRecognitionResults:
+#    handler: app.handler.get_recognition_result
+#    httpApi:
+#      payload: "2.0"
+#    events:
+#      - httpApi:
+#          path: /blobs/{blob_id}
+#          method: GET
 
+stepFunctions:
+  stateMachines:
+    uploadingStepFunction:
+      name: UploadingStepFunction
+      definition:
+        Comment: "todo"
+        StartAt: Wait
+        States:
+          Wait:
+            Type: Wait
+            Seconds: ${self:custom.uploadingWaitingTime}
+#            End: true
+            Next: CheckUploading
+          CheckUploading:
+            Type: Task
+            Resource: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${self:service}-${self:custom.stage}-checkUploading
+#              Fn::GetAtt: [checkUploading, Arn]
+            End: true
 
 resources:
+  Outputs:
+    UploadingStepFunction:
+      Value:
+        Ref: UploadingStepFunction
   Resources:
     BlobsTable:
       Type: AWS::DynamoDB::Table
