@@ -1,0 +1,6 @@
+{
+  "devDependencies": {
+    "serverless-python-requirements": "^6.0.0",
+    "serverless-step-functions": "^3.11.1"
+  }
+}

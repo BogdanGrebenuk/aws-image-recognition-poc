@@ -1,0 +1,53 @@
+import json
+
+
+class BlobS3Client:
+
+    def __init__(self, client, bucket_name, ttl):
+        self._client = client
+        self._bucket_name = bucket_name
+        self._ttl = ttl
+
+    def generate_presigned_url(self, key):
+        return self._client.generate_presigned_url(
+            'put_object',
+            Params={
+                'Bucket': self._bucket_name,
+                'Key': key
+            },
+            ExpiresIn=self._ttl,
+            HttpMethod='PUT'
+        )
+
+
+class BlobDynamoDBClient:
+
+    def __init__(self, client, table_name):
+        self._client = client
+        self._table_name = table_name
+
+    def create(self, blob_id, callback_url, status):
+        return self._client.put_item(
+            TableName=self._table_name,
+            Item={
+                'blob_id': {'S': blob_id},
+                'callback_url': {'S': callback_url},
+                'status': {'S': status}
+            }
+        )
+
+
+class UploadingStepFunctionClient:
+
+    def __init__(self, client, state_machine_arn):
+        self._client = client
+        self._state_machine_arn = state_machine_arn
+
+    def launch(self, blob_id, execution_name=None):
+        if execution_name is None:
+            execution_name = f'uploading-execution-{blob_id}'
+        return self._client.start_execution(
+            stateMachineArn=self._state_machine_arn,
+            name=execution_name,
+            input=json.dumps({'blob_id': blob_id})
+        )

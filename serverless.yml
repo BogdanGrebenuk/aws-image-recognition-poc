@@ -1,0 +1,98 @@
+service: staircase-test-task
+
+plugins:
+  - serverless-python-requirements
+  - serverless-step-functions
+package:
+  exclude:
+    - node_modules/**
+    - .idea/**
+    - venv/**
+    - package.json
+    - package-lock.json
+    - requirements.txt
+    # todo: investigate what should i remove
+
+custom:
+  stage: dev
+  blobsBucketName: blobs-bucket-${self:custom.stage}
+  blobsTableName: blobs-table-${self:custom.stage}
+  # todo: move everything related to this section
+  # todo: naming
+
+provider:
+  name: aws
+  runtime: python3.9
+  stage: ${self:custom.stage}
+  region: us-east-1
+  memorySize: 128
+  environment:
+    blobsBucketName: ${self:custom.blobsBucketName}
+    blobsTableName: ${self:custom.blobsTableName}
+  iamRoleStatements:
+    - Effect: Allow
+      Action:
+        - s3:PutObject
+        - s3:GetObject
+      Resource: arn:aws:s3:::${self:custom.blobsBucketName}/*
+#      Resource: "*"
+    - Effect: Allow
+      Action:
+        - "rekognition:*"
+      Resource: "*"
+    - Effect: Allow
+      Action:
+        - dynamodb:GetItem
+        - dynamodb:PutItem
+        - dynamodb:UpdateItem
+      Resource:
+        - { "Fn::GetAtt": ["BlobsTable", "Arn"] }
+
+functions:
+  createPresignedUrl:
+    handler: app.handler.create_presigned_url
+    httpApi:
+      payload: "2.0"
+    events:
+      - httpApi:
+          path: /blobs
+          method: POST
+  imageHasBeenUploaded:
+    handler: app.handler.image_has_been_uploaded
+    events:
+      - s3:
+          bucket: ${self:custom.blobsBucketName}
+          event: s3:ObjectCreated:*
+  testCallback: # todo: remove it
+    handler: app.handler.test_callback
+    httpApi:
+      payload: "2.0"
+    events:
+      - httpApi:
+          path: /callback
+          method: POST
+  getRecognitionResults:
+    handler: app.handler.get_recognition_result
+    httpApi:
+      payload: "2.0"
+    events:
+      - httpApi:
+          path: /blobs/{blob_id}
+          method: GET
+
+
+resources:
+  Resources:
+    BlobsTable:
+      Type: AWS::DynamoDB::Table
+      Properties:
+        TableName: ${self:custom.blobsTableName}
+        AttributeDefinitions:
+          - AttributeName: blob_id
+            AttributeType: S
+        KeySchema:
+          - AttributeName: blob_id
+            KeyType: HASH
+        ProvisionedThroughput:
+          ReadCapacityUnits: 1
+          WriteCapacityUnits: 1
