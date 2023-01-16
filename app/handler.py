@@ -12,3 +12,4 @@ get_labels_handler = container.get_labels_handler
 transform_labels_handler = container.transform_labels_handler
 save_labels_handler = container.save_labels_handler
 invoke_callback_handler = container.invoke_callback_handler
+get_recognition_result_handler = container.get_recognition_result_handler

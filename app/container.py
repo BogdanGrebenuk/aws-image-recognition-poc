@@ -6,9 +6,10 @@ import requests
 
 from .client import BlobS3Client, BlobDynamoDBClient, BlobStepFunctionClient, BlobRekognitionClient
 from .lambdas import initialize_upload_listening_handler, check_uploading_handler, image_has_been_uploaded_handler, \
-    get_labels_handler, transform_labels_handler, save_labels_handler, invoke_callback_handler
+    get_labels_handler, transform_labels_handler, save_labels_handler, invoke_callback_handler, \
+    get_recognition_result_handler
 from .usecase import UrlValidator, InitializeUploadListening, CheckUploading, StartRecognition, GetLabels, \
-    TransformLabels, SaveLabels, InvokeCallback, Invoker
+    TransformLabels, SaveLabels, InvokeCallback, Invoker, GetRecognitionResult
 
 BLOBS_BUCKET_NAME = os.environ.get('blobsBucketName')
 BLOBS_TABLE_NAME = os.environ.get('blobsTableName')
@@ -103,6 +104,10 @@ def create_container():
         invoker=container.invoker
     )
 
+    container.get_recognition_result = GetRecognitionResult(
+        blob_dynamodb_client=container.blob_dynamodb_client
+    )
+
     # lambdas
 
     container.initialize_upload_listening_handler = partial(
@@ -138,6 +143,11 @@ def create_container():
     container.invoke_callback_handler = partial(
         invoke_callback_handler,
         invoke_callback=container.invoke_callback
+    )
+
+    container.get_recognition_result_handler = partial(
+        get_recognition_result_handler,
+        get_recognition_result=container.get_recognition_result
     )
 
     return container

@@ -85,6 +85,15 @@ functions:
     handler: app.handler.save_labels_handler
   invokeCallback:
     handler: app.handler.invoke_callback_handler
+  getRecognitionResult:
+    handler: app.handler.get_recognition_result_handler
+    httpApi:
+      payload: "2.0"
+    events:
+      - httpApi:
+          path: /blobs/{blob_id}
+          method: GET
+
 #  testCallback: # todo: remove it
 #    handler: app.handler.test_callback
 #    httpApi:
@@ -93,14 +102,6 @@ functions:
 #      - httpApi:
 #          path: /callback
 #          method: POST
-#  getRecognitionResults:
-#    handler: app.handler.get_recognition_result
-#    httpApi:
-#      payload: "2.0"
-#    events:
-#      - httpApi:
-#          path: /blobs/{blob_id}
-#          method: GET
 
 stepFunctions:
   stateMachines:

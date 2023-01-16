@@ -83,6 +83,7 @@ class BlobDynamoDBClient:
             }
         )
 
+    # todo: deprecate? use get_blob?
     def get_callback_url(self, blob_id):
         response = self._client.get_item(
             TableName=self._table_name,
@@ -91,6 +92,31 @@ class BlobDynamoDBClient:
             }
         )
         return response.get('Item').get('callback_url').get('S')
+
+    def get_blob(self, blob_id):
+        response = self._client.get_item(
+            TableName=self._table_name,
+            Key={
+                'blob_id': {'S': blob_id}
+            }
+        )
+        item = response.get('Item')
+        if item is None:
+            return None
+        blob = {
+            'blob_id': item.get('blob_id').get('S'),
+            'callback_url': item.get('callback_url').get('S'),
+            'status': item.get('status').get('S'),
+            'labels': [
+                {
+                    'label': label_item.get('M').get('label').get('S'),
+                    'confidence': float(label_item.get('M').get('confidence').get('N')),
+                    'parents': [parent.get('S') for parent in label_item.get('M').get('parents').get('L')]
+                }
+                for label_item in item.get('labels').get('L')
+            ]
+        }
+        return blob
 
 
 class BlobStepFunctionClient:

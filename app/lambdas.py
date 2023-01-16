@@ -60,12 +60,8 @@ def check_uploading_handler(event, context, check_uploading):
 
 
 def image_has_been_uploaded_handler(event, context, start_recognition):
-    blob_id = get_blob_id_from_event(event)
+    blob_id = event.get('Records')[0].get('s3').get('object').get('key')
     start_recognition(blob_id)
-
-
-def get_blob_id_from_event(event):
-    return event.get('Records')[0].get('s3').get('object').get('key')
 
 
 def get_labels_handler(event, context, get_labels):
@@ -89,3 +85,13 @@ def invoke_callback_handler(event, context, invoke_callback):
     blob_id = event.get('blob_id')
     labels = event.get('labels')
     return invoke_callback(blob_id, labels)
+
+
+@with_http_api_response_format
+def get_recognition_result_handler(event, context, get_recognition_result):
+    blob_id = event.get('pathParameters').get('blob_id')
+    result = get_recognition_result(blob_id)
+    return Response(
+        body=result,
+        status_code=HTTPStatus.OK.value
+    )

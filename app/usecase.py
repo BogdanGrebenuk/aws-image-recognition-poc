@@ -165,3 +165,24 @@ class Invoker:
             return self.CONNECT_TIMEOUT
         except requests.exceptions.ConnectionError:
             return self.CONNECTION_ERROR
+
+
+class GetRecognitionResult:
+
+    def __init__(self, blob_dynamodb_client):
+        self._blob_dynamodb_client = blob_dynamodb_client
+
+    def __call__(self, blob_id):
+        blob = self._blob_dynamodb_client.get_blob(blob_id)
+        if blob is None:
+            raise Exception() # todo NotFound
+        status = blob.get('status')
+        if status == RecognitionStatus.WAITING_FOR_UPLOAD.value:
+            raise Exception() # todo NotUploaded
+        elif status == RecognitionStatus.UPLOAD_TIMED_OUT.value:
+            raise Exception() # todo UploadTimedOut
+        elif status == RecognitionStatus.IN_PROGRESS.value:
+            raise Exception() # todo InProgress
+        return blob
+
+
