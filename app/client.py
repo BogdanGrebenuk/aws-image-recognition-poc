@@ -61,8 +61,39 @@ class BlobDynamoDBClient:
             }
         )
 
+    def save_labels(self, blob_id, labels):
+        data = {
+            'L': [
+                {
+                    'M': {
+                        'label': {'S': item['label']},
+                        'confidence': {'N': str(item['confidence'])},
+                        'parents': {'L': [{'S': i} for i in item['parents']]}
+                    }
+                }
+                for item in labels
+            ]
+        }
+        return self._client.update_item(
+            TableName=self._table_name,
+            Key={'blob_id': {'S': blob_id}},
+            UpdateExpression='SET labels = :labels',
+            ExpressionAttributeValues={
+                ':labels': data
+            }
+        )
 
-class UploadingStepFunctionClient:
+    def get_callback_url(self, blob_id):
+        response = self._client.get_item(
+            TableName=self._table_name,
+            Key={
+                'blob_id': {'S': blob_id}
+            }
+        )
+        return response.get('Item').get('callback_url').get('S')
+
+
+class BlobStepFunctionClient:
 
     def __init__(self, client, state_machine_arn):
         self._client = client
@@ -75,4 +106,25 @@ class UploadingStepFunctionClient:
             stateMachineArn=self._state_machine_arn,
             name=execution_name,
             input=json.dumps({'blob_id': blob_id})
+        )
+
+
+class BlobRekognitionClient:
+
+    def __init__(self, client, bucket_name, max_labels, min_confidence):
+        self._client = client
+        self._bucket_name = bucket_name
+        self._max_labels = max_labels
+        self._min_confidence = min_confidence
+
+    def detect_labels(self, blob_id):
+        return self._client.detect_labels(
+            Image={
+                'S3Object': {
+                    'Bucket': self._bucket_name,
+                    'Name': blob_id
+                }
+            },
+            MaxLabels=self._max_labels,
+            MinConfidence=self._min_confidence
         )

@@ -35,6 +35,7 @@ provider:
     presignedUrlTTL: ${self:custom.presignedUrlTTL}
     uploadingWaitingTime: ${self:custom.uploadingWaitingTime}
     uploadingStepFunctionArn: ${self:resources.Outputs.UploadingStepFunction.Value}
+    recognitionStepFunctionArn: ${self:resources.Outputs.RecognitionStepFunction.Value}
   iamRoleStatements:
     - Effect: Allow
       Action:
@@ -70,13 +71,20 @@ functions:
           method: POST
   checkUploading:
     handler: app.handler.check_uploading_handler
-
   imageHasBeenUploaded:
     handler: app.handler.image_has_been_uploaded_handler
     events:
       - s3:
           bucket: ${self:custom.blobsBucketName}
           event: s3:ObjectCreated:*
+  getLabels:
+    handler: app.handler.get_labels_handler
+  transformLabels:
+    handler: app.handler.transform_labels_handler
+  saveLabels:
+    handler: app.handler.save_labels_handler
+  invokeCallback:
+    handler: app.handler.invoke_callback_handler
 #  testCallback: # todo: remove it
 #    handler: app.handler.test_callback
 #    httpApi:
@@ -99,18 +107,38 @@ stepFunctions:
     uploadingStepFunction:
       name: UploadingStepFunction
       definition:
-        Comment: "todo"
+        Comment: "todo" # todo
         StartAt: Wait
         States:
           Wait:
             Type: Wait
             Seconds: ${self:custom.uploadingWaitingTime}
-#            End: true
             Next: CheckUploading
           CheckUploading:
             Type: Task
             Resource: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${self:service}-${self:custom.stage}-checkUploading
-#              Fn::GetAtt: [checkUploading, Arn]
+            End: true
+    recognitionStepFunction:
+      name: RecognitionStepFunction
+      definition:
+        Comment: "todo" # todo
+        StartAt: GetLabels
+        States:
+          GetLabels:
+            Type: Task
+            Resource: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${self:service}-${self:custom.stage}-getLabels
+            Next: TransformLabels
+          TransformLabels:
+            Type: Task
+            Resource: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${self:service}-${self:custom.stage}-transformLabels
+            Next: SaveLabels
+          SaveLabels:
+            Type: Task
+            Resource: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${self:service}-${self:custom.stage}-saveLabels
+            Next: InvokeCallback
+          InvokeCallback:
+            Type: Task
+            Resource: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${self:service}-${self:custom.stage}-invokeCallback
             End: true
 
 resources:
@@ -118,6 +146,9 @@ resources:
     UploadingStepFunction:
       Value:
         Ref: UploadingStepFunction
+    RecognitionStepFunction:
+      Value:
+        Ref: RecognitionStepFunction
   Resources:
     BlobsTable:
       Type: AWS::DynamoDB::Table

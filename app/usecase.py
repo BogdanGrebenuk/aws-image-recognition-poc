@@ -1,3 +1,4 @@
+import requests.exceptions
 from marshmallow.exceptions import ValidationError
 from marshmallow.validate import URL
 
@@ -62,3 +63,105 @@ class CheckUploading:
         if self._blob_s3_client.is_uploaded(blob_id):
             return
         self._blob_dynamodb_client.update_status(blob_id, RecognitionStatus.UPLOAD_TIMED_OUT.value)
+
+
+class StartRecognition:
+
+    def __init__(
+            self,
+            recognition_step_function_client,
+            blob_dynamodb_client
+            ):
+        self._recognition_step_function_client = recognition_step_function_client
+        self._blob_dynamodb_client = blob_dynamodb_client
+
+    def __call__(self, blob_id):
+        self._blob_dynamodb_client.update_status(blob_id, RecognitionStatus.IN_PROGRESS.value)
+        self._recognition_step_function_client.launch(blob_id)
+
+
+class GetLabels:
+
+    def __init__(self, blob_rekognition_client):
+        self._blob_rekognition_client = blob_rekognition_client
+
+    def __call__(self, blob_id):
+        return {
+            'blob_id': blob_id,
+            'labels': self._blob_rekognition_client.detect_labels(blob_id)
+        }
+
+
+class TransformLabels:
+
+    def __call__(self, blob_id, raw_labels_data):
+        return {
+            'blob_id': blob_id,
+            'labels': [
+                {
+                    'label': label.get('Name', ''),
+                    'confidence': label.get('Confidence', ''),
+                    'parents': [parent.get('Name') for parent in label.get('Parents', '')]
+                }
+                for label in raw_labels_data.get('Labels')
+            ]
+        }
+
+
+class SaveLabels:
+
+    def __init__(self, blob_dynamodb_client):
+        self._blob_dynamodb_client = blob_dynamodb_client
+
+    def __call__(self, blob_id, labels):
+        self._blob_dynamodb_client.save_labels(blob_id, labels)
+        return {
+            'blob_id': blob_id,
+            'labels': labels
+        }
+
+
+class InvokeCallback:
+
+    def __init__(self, blob_dynamodb_client, invoker):
+        self._blob_dynamodb_client = blob_dynamodb_client
+        self._invoker = invoker
+
+    def __call__(self, blob_id, labels):
+        callback_url = self._blob_dynamodb_client.get_callback_url(blob_id)
+        data_to_send = {
+            'blob_id': blob_id,
+            'labels': labels
+        }
+        status = self._invoker.invoke(callback_url, data_to_send)
+        if status == self._invoker.SUCCESS:
+            self._blob_dynamodb_client.update_status(blob_id, RecognitionStatus.SUCCESS.value)
+        elif status == self._invoker.CALLBACK_FAILURE:
+            self._blob_dynamodb_client.update_status(blob_id, RecognitionStatus.FAILED_DUE_TO_CALLBACK_FAILURE.value)
+        elif status == self._invoker.CONNECT_TIMEOUT:
+            self._blob_dynamodb_client.update_status(blob_id, RecognitionStatus.FAILED_DUE_TO_CALLBACK_TIME_OUT.value)
+        elif status == self._invoker.CONNECTION_ERROR:
+            self._blob_dynamodb_client.update_status(blob_id, RecognitionStatus.FAILED_DUE_TO_CALLBACK_CONNECTION.value)
+
+
+class Invoker:
+
+    SUCCESS = 0
+    CALLBACK_FAILURE = 1
+    CONNECT_TIMEOUT = 2
+    CONNECTION_ERROR = 3
+
+    def __init__(self, http_invoke, timeout):
+        self._http_invoke = http_invoke
+        self._timeout = timeout
+
+    def invoke(self, url, data):
+        try:
+            response = self._http_invoke(url, json=data, timeout=self._timeout)
+            if response.status_code == 204:
+                return self.SUCCESS
+            return self.CALLBACK_FAILURE
+        except requests.exceptions.ConnectTimeout:
+            return self.CONNECT_TIMEOUT
+        except requests.exceptions.ConnectionError:
+            return self.CONNECTION_ERROR

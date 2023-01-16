@@ -57,3 +57,35 @@ def get_callback_url_from_event(event):
 def check_uploading_handler(event, context, check_uploading):
     blob_id = event.get('blob_id')
     check_uploading(blob_id)
+
+
+def image_has_been_uploaded_handler(event, context, start_recognition):
+    blob_id = get_blob_id_from_event(event)
+    start_recognition(blob_id)
+
+
+def get_blob_id_from_event(event):
+    return event.get('Records')[0].get('s3').get('object').get('key')
+
+
+def get_labels_handler(event, context, get_labels):
+    blob_id = event.get('blob_id')
+    return get_labels(blob_id)
+
+
+def transform_labels_handler(event, context, transform_labels):
+    blob_id = event.get('blob_id')
+    labels = event.get('labels')
+    return transform_labels(blob_id, labels)
+
+
+def save_labels_handler(event, context, save_labels):
+    blob_id = event.get('blob_id')
+    labels = event.get('labels')
+    return save_labels(blob_id, labels)
+
+
+def invoke_callback_handler(event, context, invoke_callback):
+    blob_id = event.get('blob_id')
+    labels = event.get('labels')
+    return invoke_callback(blob_id, labels)
