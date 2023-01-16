@@ -30,7 +30,7 @@ def initialize_upload_listening_handler(
     blob_id = str(uuid4())
     callback_url = get_callback_url_from_event(event)
     try:
-        upload_url = initialize_upload_listening(blob_id, callback_url)
+        result = initialize_upload_listening(blob_id, callback_url)
     except CallbackUrlIsNotValid as exception:
         return Response(
             body={
@@ -40,11 +40,7 @@ def initialize_upload_listening_handler(
             status_code=HTTPStatus.BAD_REQUEST.value
         )
     return Response(
-        body={
-            'blob_id': blob_id,
-            'callback_url': callback_url,
-            'upload_url': upload_url
-        },
+        body=result.as_dict(),
         status_code=HTTPStatus.CREATED.value
     )
 
@@ -66,25 +62,25 @@ def image_has_been_uploaded_handler(event, context, start_recognition):
 
 def get_labels_handler(event, context, get_labels):
     blob_id = event.get('blob_id')
-    return get_labels(blob_id)
+    return get_labels(blob_id).as_dict()
 
 
 def transform_labels_handler(event, context, transform_labels):
     blob_id = event.get('blob_id')
     labels = event.get('labels')
-    return transform_labels(blob_id, labels)
+    return transform_labels(blob_id, labels).as_dict()
 
 
 def save_labels_handler(event, context, save_labels):
     blob_id = event.get('blob_id')
     labels = event.get('labels')
-    return save_labels(blob_id, labels)
+    return save_labels(blob_id, labels).as_dict()
 
 
 def invoke_callback_handler(event, context, invoke_callback):
     blob_id = event.get('blob_id')
     labels = event.get('labels')
-    return invoke_callback(blob_id, labels)
+    return invoke_callback(blob_id, labels).as_dict()
 
 
 @with_http_api_response_format

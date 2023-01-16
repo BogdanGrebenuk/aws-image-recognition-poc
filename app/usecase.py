@@ -3,6 +3,7 @@ from marshmallow.exceptions import ValidationError
 from marshmallow.validate import URL
 
 from .domain import RecognitionStatus
+from .dto import UploadInitializingResult, RecognitionStepFunctionResult
 from .exception import CallbackUrlIsNotValid
 
 
@@ -28,7 +29,11 @@ class InitializeUploadListening:
         self._uploading_step_function_client.launch(blob_id)
         upload_url = self._blob_s3_client.generate_presigned_url(blob_id)
 
-        return upload_url
+        return UploadInitializingResult(
+            blob_id=blob_id,
+            upload_url=upload_url,
+            callback_url=callback_url
+        )
 
     def _validate_callback_url(self, url):
         if not self._validator.is_valid_url(url):
@@ -86,26 +91,30 @@ class GetLabels:
         self._blob_rekognition_client = blob_rekognition_client
 
     def __call__(self, blob_id):
-        return {
-            'blob_id': blob_id,
-            'labels': self._blob_rekognition_client.detect_labels(blob_id)
-        }
+        return RecognitionStepFunctionResult(
+            blob_id=blob_id,
+            labels=self._blob_rekognition_client.detect_labels(blob_id)
+        )
 
 
 class TransformLabels:
 
     def __call__(self, blob_id, raw_labels_data):
-        return {
-            'blob_id': blob_id,
-            'labels': [
-                {
-                    'label': label.get('Name', ''),
-                    'confidence': label.get('Confidence', ''),
-                    'parents': [parent.get('Name') for parent in label.get('Parents', '')]
-                }
-                for label in raw_labels_data.get('Labels')
-            ]
-        }
+        return RecognitionStepFunctionResult(
+            blob_id=blob_id,
+            labels=self._transform(raw_labels_data)
+        )
+
+    def _transform(self, raw_labels_data):
+        labels = raw_labels_data.get('Labels')
+        return [
+            {
+                'label': label.get('Name', ''),
+                'confidence': label.get('Confidence', ''),
+                'parents': [parent.get('Name', '') for parent in label.get('Parents', {})]
+            }
+            for label in labels
+        ]
 
 
 class SaveLabels:
@@ -115,10 +124,10 @@ class SaveLabels:
 
     def __call__(self, blob_id, labels):
         self._blob_dynamodb_client.save_labels(blob_id, labels)
-        return {
-            'blob_id': blob_id,
-            'labels': labels
-        }
+        return RecognitionStepFunctionResult(
+            blob_id=blob_id,
+            labels=labels
+        )
 
 
 class InvokeCallback:
@@ -142,6 +151,10 @@ class InvokeCallback:
             self._blob_dynamodb_client.update_status(blob_id, RecognitionStatus.FAILED_DUE_TO_CALLBACK_TIME_OUT.value)
         elif status == self._invoker.CONNECTION_ERROR:
             self._blob_dynamodb_client.update_status(blob_id, RecognitionStatus.FAILED_DUE_TO_CALLBACK_CONNECTION.value)
+        return RecognitionStepFunctionResult(
+            blob_id=blob_id,
+            labels=labels
+        )
 
 
 class Invoker:
