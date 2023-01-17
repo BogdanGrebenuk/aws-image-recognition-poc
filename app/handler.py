@@ -1,15 +1,15 @@
-from .container import create_container
+from .container import Container
 
 
-container = create_container()
+container = Container()
 
 # todo: add Catch flow to the step functions
 
-initialize_upload_listening_handler = container.initialize_upload_listening_handler
-check_uploading_handler = container.check_uploading_handler
-image_has_been_uploaded_handler = container.image_has_been_uploaded_handler
-get_labels_handler = container.get_labels_handler
-transform_labels_handler = container.transform_labels_handler
-save_labels_handler = container.save_labels_handler
-invoke_callback_handler = container.invoke_callback_handler
-get_recognition_result_handler = container.get_recognition_result_handler
+initialize_upload_listening_handler = container.initialize_upload_listening_handler.handle
+check_uploading_handler = container.check_uploading_handler.handle
+image_has_been_uploaded_handler = container.image_has_been_uploaded_handler.handle
+get_labels_handler = container.get_labels_handler.handle
+transform_labels_handler = container.transform_labels_handler.handle
+save_labels_handler = container.save_labels_handler.handle
+invoke_callback_handler = container.invoke_callback_handler.handle
+get_recognition_result_handler = container.get_recognition_result_handler.handle

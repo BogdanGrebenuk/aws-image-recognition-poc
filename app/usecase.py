@@ -3,8 +3,9 @@ from marshmallow.exceptions import ValidationError
 from marshmallow.validate import URL
 
 from .domain import RecognitionStatus
-from .dto import UploadInitializingResult, RecognitionStepFunctionResult
-from .exception import CallbackUrlIsNotValid
+from .dto import UploadInitializingResult, RecognitionStepFunctionResult, BlobRecognitionResult
+from .exception import CallbackUrlIsNotValid, BlobWasNotFound, BlobIsNotUploadedYet, BlobUploadTimedOut, \
+    BlobRecognitionIsInProgress
 
 
 class InitializeUploadListening:
@@ -38,7 +39,7 @@ class InitializeUploadListening:
     def _validate_callback_url(self, url):
         if not self._validator.is_valid_url(url):
             raise CallbackUrlIsNotValid(
-                message='Invalid callback url supplied',
+                message='Invalid callback url supplied.',
                 payload={'callback_url': url}
             )
 
@@ -137,17 +138,18 @@ class InvokeCallback:
         self._invoker = invoker
 
     def __call__(self, blob_id, labels):
-        callback_url = self._blob_dynamodb_client.get_callback_url(blob_id)
-        data_to_send = {
-            'blob_id': blob_id,
-            'labels': labels
-        }
-        status = self._invoker.invoke(callback_url, data_to_send)
+        blob = self._blob_dynamodb_client.get_blob(blob_id)
+        callback_url = blob.get('callback_url')
+        data_to_send = BlobRecognitionResult(
+            blob_id=blob_id,
+            labels=labels
+        )
+        status = self._invoker.invoke(callback_url, data_to_send.as_dict())
         if status == self._invoker.SUCCESS:
             self._blob_dynamodb_client.update_status(blob_id, RecognitionStatus.SUCCESS.value)
         elif status == self._invoker.CALLBACK_FAILURE:
             self._blob_dynamodb_client.update_status(blob_id, RecognitionStatus.FAILED_DUE_TO_CALLBACK_FAILURE.value)
-        elif status == self._invoker.CONNECT_TIMEOUT:
+        elif status == self._invoker.CONNECTION_TIMEOUT:
             self._blob_dynamodb_client.update_status(blob_id, RecognitionStatus.FAILED_DUE_TO_CALLBACK_TIME_OUT.value)
         elif status == self._invoker.CONNECTION_ERROR:
             self._blob_dynamodb_client.update_status(blob_id, RecognitionStatus.FAILED_DUE_TO_CALLBACK_CONNECTION.value)
@@ -161,7 +163,7 @@ class Invoker:
 
     SUCCESS = 0
     CALLBACK_FAILURE = 1
-    CONNECT_TIMEOUT = 2
+    CONNECTION_TIMEOUT = 2
     CONNECTION_ERROR = 3
 
     def __init__(self, http_invoke, timeout):
@@ -175,7 +177,7 @@ class Invoker:
                 return self.SUCCESS
             return self.CALLBACK_FAILURE
         except requests.exceptions.ConnectTimeout:
-            return self.CONNECT_TIMEOUT
+            return self.CONNECTION_TIMEOUT
         except requests.exceptions.ConnectionError:
             return self.CONNECTION_ERROR
 
@@ -188,14 +190,27 @@ class GetRecognitionResult:
     def __call__(self, blob_id):
         blob = self._blob_dynamodb_client.get_blob(blob_id)
         if blob is None:
-            raise Exception() # todo NotFound
+            raise BlobWasNotFound(
+                message='Blob not found.',
+                payload={'blob_id': blob_id, 'status': RecognitionStatus.NOT_FOUND.value}
+            )
         status = blob.get('status')
         if status == RecognitionStatus.WAITING_FOR_UPLOAD.value:
-            raise Exception() # todo NotUploaded
+            raise BlobIsNotUploadedYet(
+                message='Blob hasn\'t been uploaded yet.',
+                payload={'blob_id': blob_id, 'status': status}
+            )
         elif status == RecognitionStatus.UPLOAD_TIMED_OUT.value:
-            raise Exception() # todo UploadTimedOut
+            raise BlobUploadTimedOut(
+                message='Blob upload is timed out.',
+                payload={'blob_id': blob_id, 'status': status}
+            )
         elif status == RecognitionStatus.IN_PROGRESS.value:
-            raise Exception() # todo InProgress
-        return blob
-
-
+            raise BlobRecognitionIsInProgress(
+                message='Recognition is in progress.',
+                payload={'blob_id': blob_id, 'status': status}
+            )
+        return BlobRecognitionResult(
+            blob_id=blob_id,
+            labels=blob.get('labels')
+        )

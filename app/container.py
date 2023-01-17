@@ -5,11 +5,12 @@ import boto3
 import requests
 
 from .client import BlobS3Client, BlobDynamoDBClient, BlobStepFunctionClient, BlobRekognitionClient
-from .lambdas import initialize_upload_listening_handler, check_uploading_handler, image_has_been_uploaded_handler, \
-    get_labels_handler, transform_labels_handler, save_labels_handler, invoke_callback_handler, \
-    get_recognition_result_handler
+from .lambdas import CheckUploadingHandler, ImageHasBeenUploadedHandler, \
+    GetLabelsHandler, TransformLabelsHandler, SaveLabelsHandler, InvokeCallbackHandler, \
+    GetRecognitionResultHandler, uuid_generator, InitializeUploadListeningHandler
 from .usecase import UrlValidator, InitializeUploadListening, CheckUploading, StartRecognition, GetLabels, \
     TransformLabels, SaveLabels, InvokeCallback, Invoker, GetRecognitionResult
+
 
 BLOBS_BUCKET_NAME = os.environ.get('blobsBucketName')
 BLOBS_TABLE_NAME = os.environ.get('blobsTableName')
@@ -18,136 +19,130 @@ UPLOADING_WAITING_TIME = os.environ.get('uploadingWaitingTime')
 UPLOADING_STEP_FUNCTION_ARN = os.environ.get('uploadingStepFunctionArn')
 RECOGNITION_STEP_FUNCTION_ARN = os.environ.get('recognitionStepFunctionArn')
 
-_s3_client = boto3.client('s3')
-_dynamodb_client = boto3.client('dynamodb')
-_rekognition_client = boto3.client('rekognition')
-_step_function_client = boto3.client('stepfunctions')
 
+class Container:
 
-class _Container:
-    ... # todo
+    def __init__(self, *, testing_mode=False):
 
+        if testing_mode:
+            s3_client = object()
+            dynamodb_client = object()
+            rekognition_client = object()
+            step_function_client = object()
+        else:
+            s3_client = boto3.client('s3')
+            dynamodb_client = boto3.client('dynamodb')
+            rekognition_client = boto3.client('rekognition')
+            step_function_client = boto3.client('stepfunctions')
 
-def create_container():
-    container = _Container()
+        # clients
 
-    # clients
+        self.blob_s3_client = BlobS3Client(
+            client=s3_client,
+            bucket_name=BLOBS_BUCKET_NAME,
+            ttl=PRESIGNED_URL_TTL
+        )
 
-    container.blob_s3_client = BlobS3Client(
-        client=_s3_client,
-        bucket_name=BLOBS_BUCKET_NAME,
-        ttl=PRESIGNED_URL_TTL
-    )
+        self.blob_dynamodb_client = BlobDynamoDBClient(
+            client=dynamodb_client,
+            table_name=BLOBS_TABLE_NAME
+        )
 
-    container.blob_dynamodb_client = BlobDynamoDBClient(
-        client=_dynamodb_client,
-        table_name=BLOBS_TABLE_NAME
-    )
+        self.uploading_step_function_client = BlobStepFunctionClient(
+            client=step_function_client,
+            state_machine_arn=UPLOADING_STEP_FUNCTION_ARN
+        )
 
-    container.uploading_step_function_client = BlobStepFunctionClient(
-        client=_step_function_client,
-        state_machine_arn=UPLOADING_STEP_FUNCTION_ARN
-    )
+        self.recognition_step_function_client = BlobStepFunctionClient(
+            client=step_function_client,
+            state_machine_arn=RECOGNITION_STEP_FUNCTION_ARN
+        )
 
-    container.recognition_step_function_client = BlobStepFunctionClient(
-        client=_step_function_client,
-        state_machine_arn=RECOGNITION_STEP_FUNCTION_ARN
-    )
+        self.blob_rekognition_client = BlobRekognitionClient(
+            client=rekognition_client,
+            bucket_name=BLOBS_BUCKET_NAME,
+            max_labels=10,  # todo: move to env var
+            min_confidence=50  # todo: move to env var
+        )
 
-    container.blob_rekognition_client = BlobRekognitionClient(
-        client=_rekognition_client,
-        bucket_name=BLOBS_BUCKET_NAME,
-        max_labels=10,  # todo: move to env var
-        min_confidence=50  # todo: move to env var
-    )
+        # services
 
-    # services
+        self.url_validator = UrlValidator()
 
-    container.url_validator = UrlValidator()
+        self.invoker = Invoker(
+            http_invoke=requests.post,
+            timeout=10  # todo: move to env var
+        )
 
-    container.invoker = Invoker(
-        http_invoke=requests.post,
-        timeout=10  # todo: move to env var
-    )
+        # use cases
 
-    # use cases
+        self.initialize_upload_listening = InitializeUploadListening(
+            blob_s3_client=self.blob_s3_client,
+            blob_dynamodb_client=self.blob_dynamodb_client,
+            uploading_step_function_client=self.uploading_step_function_client,
+            validator=self.url_validator
+        )
 
-    container.initialize_upload_listening = InitializeUploadListening(
-        blob_s3_client=container.blob_s3_client,
-        blob_dynamodb_client=container.blob_dynamodb_client,
-        uploading_step_function_client=container.uploading_step_function_client,
-        validator=container.url_validator
-    )
+        self.check_uploading = CheckUploading(
+            blob_s3_client=self.blob_s3_client,
+            blob_dynamodb_client=self.blob_dynamodb_client
+        )
 
-    container.check_uploading = CheckUploading(
-        blob_s3_client=container.blob_s3_client,
-        blob_dynamodb_client=container.blob_dynamodb_client
-    )
+        self.start_recognition = StartRecognition(
+            recognition_step_function_client=self.recognition_step_function_client,
+            blob_dynamodb_client=self.blob_dynamodb_client
+        )
 
-    container.start_recognition = StartRecognition(
-        recognition_step_function_client=container.recognition_step_function_client,
-        blob_dynamodb_client=container.blob_dynamodb_client
-    )
+        self.get_labels = GetLabels(
+            blob_rekognition_client=self.blob_rekognition_client
+        )
 
-    container.get_labels = GetLabels(
-        blob_rekognition_client=container.blob_rekognition_client
-    )
+        self.transform_labels = TransformLabels()
 
-    container.transform_labels = TransformLabels()
+        self.save_labels = SaveLabels(
+            blob_dynamodb_client=self.blob_dynamodb_client
+        )
 
-    container.save_labels = SaveLabels(
-        blob_dynamodb_client=container.blob_dynamodb_client
-    )
+        self.invoke_callback = InvokeCallback(
+            blob_dynamodb_client=self.blob_dynamodb_client,
+            invoker=self.invoker
+        )
 
-    container.invoke_callback = InvokeCallback(
-        blob_dynamodb_client=container.blob_dynamodb_client,
-        invoker=container.invoker
-    )
+        self.get_recognition_result = GetRecognitionResult(
+            blob_dynamodb_client=self.blob_dynamodb_client
+        )
 
-    container.get_recognition_result = GetRecognitionResult(
-        blob_dynamodb_client=container.blob_dynamodb_client
-    )
+        # lambdas
 
-    # lambdas
+        self.initialize_upload_listening_handler = InitializeUploadListeningHandler(
+            id_generator=uuid_generator,
+            initialize_upload_listening=self.initialize_upload_listening
+        )
 
-    container.initialize_upload_listening_handler = partial(
-        initialize_upload_listening_handler,
-        initialize_upload_listening=container.initialize_upload_listening
-    )
+        self.check_uploading_handler = CheckUploadingHandler(
+            check_uploading=self.check_uploading
+        )
 
-    container.check_uploading_handler = partial(
-        check_uploading_handler,
-        check_uploading=container.check_uploading
-    )
+        self.image_has_been_uploaded_handler = ImageHasBeenUploadedHandler(
+            start_recognition=self.start_recognition
+        )
 
-    container.image_has_been_uploaded_handler = partial(
-        image_has_been_uploaded_handler,
-        start_recognition=container.start_recognition
-    )
+        self.get_labels_handler = GetLabelsHandler(
+            get_labels=self.get_labels
+        )
 
-    container.get_labels_handler = partial(
-        get_labels_handler,
-        get_labels=container.get_labels
-    )
+        self.transform_labels_handler = TransformLabelsHandler(
+            transform_labels=self.transform_labels
+        )
 
-    container.transform_labels_handler = partial(
-        transform_labels_handler,
-        transform_labels=container.transform_labels
-    )
+        self.save_labels_handler = SaveLabelsHandler(
+            save_labels=self.save_labels
+        )
 
-    container.save_labels_handler = partial(
-        save_labels_handler,
-        save_labels=container.save_labels
-    )
+        self.invoke_callback_handler = InvokeCallbackHandler(
+            invoke_callback=self.invoke_callback
+        )
 
-    container.invoke_callback_handler = partial(
-        invoke_callback_handler,
-        invoke_callback=container.invoke_callback
-    )
-
-    container.get_recognition_result_handler = partial(
-        get_recognition_result_handler,
-        get_recognition_result=container.get_recognition_result
-    )
-
-    return container
+        self.get_recognition_result_handler = GetRecognitionResultHandler(
+            get_recognition_result=self.get_recognition_result
+        )

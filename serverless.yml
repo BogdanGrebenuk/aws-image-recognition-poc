@@ -12,7 +12,10 @@ package:
     - package.json
     - package-lock.json
     - requirements.txt
-    # todo: investigate what should i remove
+    - .coverage
+    - tests.py
+    - htmlcov/**
+    - __pycache__/**
 
 custom:
   stage: dev

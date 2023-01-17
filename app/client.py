@@ -83,16 +83,6 @@ class BlobDynamoDBClient:
             }
         )
 
-    # todo: deprecate? use get_blob?
-    def get_callback_url(self, blob_id):
-        response = self._client.get_item(
-            TableName=self._table_name,
-            Key={
-                'blob_id': {'S': blob_id}
-            }
-        )
-        return response.get('Item').get('callback_url').get('S')
-
     def get_blob(self, blob_id):
         response = self._client.get_item(
             TableName=self._table_name,

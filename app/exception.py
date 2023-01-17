@@ -9,3 +9,19 @@ class RecognitionBaseException(Exception):
 
 class CallbackUrlIsNotValid(RecognitionBaseException):
     ... # todo
+
+
+class BlobWasNotFound(RecognitionBaseException):
+    ... # todo
+
+
+class BlobIsNotUploadedYet(RecognitionBaseException):
+    ... # todo
+
+
+class BlobUploadTimedOut(RecognitionBaseException):
+    ... # todo
+
+
+class BlobRecognitionIsInProgress(RecognitionBaseException):
+    ... # todo

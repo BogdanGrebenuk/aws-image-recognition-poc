@@ -3,3 +3,5 @@ node_modules/
 .serverless/
 .idea
 app/__pycache__/
+.coverage
+__pycache__/

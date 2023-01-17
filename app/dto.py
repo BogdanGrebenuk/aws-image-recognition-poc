@@ -19,3 +19,9 @@ class UploadInitializingResult(Dto):
 class RecognitionStepFunctionResult(Dto):
     blob_id: str
     labels: list
+
+
+@dataclass
+class BlobRecognitionResult(Dto):
+    blob_id: str
+    labels: list
