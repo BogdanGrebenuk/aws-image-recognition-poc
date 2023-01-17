@@ -132,6 +132,9 @@ stepFunctions:
             Type: Task
             Resource: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${self:service}-${self:custom.stage}-getLabels
             Next: TransformLabels
+            Catch:
+              - ErrorEquals: ["RecognitionStepHasBeenFailed"]
+                Next: RecognitionPredefinedErrorFallback
           TransformLabels:
             Type: Task
             Resource: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${self:service}-${self:custom.stage}-transformLabels
@@ -143,6 +146,9 @@ stepFunctions:
           InvokeCallback:
             Type: Task
             Resource: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${self:service}-${self:custom.stage}-invokeCallback
+            End: true
+          RecognitionPredefinedErrorFallback:
+            Type: Pass
             End: true
 
 resources:

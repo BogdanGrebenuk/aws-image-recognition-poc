@@ -25,3 +25,15 @@ class BlobUploadTimedOut(RecognitionBaseException):
 
 class BlobRecognitionIsInProgress(RecognitionBaseException):
     ... # todo
+
+
+class InvalidBlobHasBeenUploaded(RecognitionBaseException):
+    ... # todo
+
+
+class TooLargeBlobHasBeenUploaded(RecognitionBaseException):
+    ... # todo
+
+
+class RecognitionStepHasBeenFailed(RecognitionBaseException):
+    ... # todo

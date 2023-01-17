@@ -5,8 +5,7 @@ from json import dumps, loads
 from uuid import uuid4
 
 from .exception import CallbackUrlIsNotValid, BlobIsNotUploadedYet, BlobUploadTimedOut, BlobRecognitionIsInProgress, \
-    BlobWasNotFound
-
+    BlobWasNotFound, InvalidBlobHasBeenUploaded, TooLargeBlobHasBeenUploaded
 
 Response = namedtuple('Response', ['body', 'status_code'])
 
@@ -128,6 +127,8 @@ class GetRecognitionResultHandler:
                 BlobIsNotUploadedYet,
                 BlobUploadTimedOut,
                 BlobRecognitionIsInProgress,
+                InvalidBlobHasBeenUploaded,
+                TooLargeBlobHasBeenUploaded
         ) as e:
             return Response(
                 body={

@@ -94,7 +94,8 @@ class Container:
         )
 
         self.get_labels = GetLabels(
-            blob_rekognition_client=self.blob_rekognition_client
+            blob_rekognition_client=self.blob_rekognition_client,
+            blob_dynamodb_client=self.blob_dynamodb_client
         )
 
         self.transform_labels = TransformLabels()

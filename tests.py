@@ -14,7 +14,7 @@ from app.exception import (
     BlobWasNotFound,
     BlobIsNotUploadedYet,
     BlobUploadTimedOut,
-    BlobRecognitionIsInProgress
+    BlobRecognitionIsInProgress, InvalidBlobHasBeenUploaded, TooLargeBlobHasBeenUploaded, RecognitionStepHasBeenFailed
 )
 from app.usecase import UrlValidator, Invoker
 
@@ -292,6 +292,56 @@ class TestBlobRekognitionClient(unittest.TestCase):  # pragma: no cover
             MinConfidence=self.min_confidence
         )
 
+    def test_unsuccessful_labels_detection_due_to_invalid_blob_format(self):
+        self.actual_client.exceptions = Mock()
+        self.actual_client.exceptions.InvalidImageFormatException = TypeError
+        self.actual_client.exceptions.ImageTooLargeException = ValueError
+        self.actual_client.detect_labels = Mock(side_effect=self.actual_client.exceptions.InvalidImageFormatException)
+
+        client = self.set_up_client()
+
+        blob_id = 'blob_id'
+        with self.assertRaises(InvalidBlobHasBeenUploaded) as cm:
+            client.detect_labels(blob_id)
+        exception = cm.exception
+        self.assertEqual(str(exception), 'Invalid image format has been uploaded.')
+        self.assertEqual(exception.payload, {'blob_id': blob_id})
+        self.actual_client.detect_labels.assert_called_with(
+            Image={
+                'S3Object': {
+                    'Bucket': self.bucket,
+                    'Name': blob_id
+                }
+            },
+            MaxLabels=self.max_labels,
+            MinConfidence=self.min_confidence
+        )
+
+    def test_unsuccessful_labels_detection_due_to_too_large_blob(self):
+        self.actual_client.exceptions = Mock()
+        self.actual_client.exceptions.InvalidImageFormatException = TypeError
+        self.actual_client.exceptions.ImageTooLargeException = ValueError
+        self.actual_client.detect_labels = Mock(side_effect=self.actual_client.exceptions.ImageTooLargeException)
+
+        client = self.set_up_client()
+
+        blob_id = 'blob_id'
+        with self.assertRaises(TooLargeBlobHasBeenUploaded) as cm:
+            client.detect_labels(blob_id)
+        exception = cm.exception
+        self.assertEqual(str(exception), 'Too large image has been uploaded.')
+        self.assertEqual(exception.payload, {'blob_id': blob_id})
+        self.actual_client.detect_labels.assert_called_with(
+            Image={
+                'S3Object': {
+                    'Bucket': self.bucket,
+                    'Name': blob_id
+                }
+            },
+            MaxLabels=self.max_labels,
+            MinConfidence=self.min_confidence
+        )
+
 
 class TestInitializeUploadListening(unittest.TestCase):  # pragma: no cover
 
@@ -418,10 +468,12 @@ class TestGetLabels(unittest.TestCase):  # pragma: no cover
     def setUp(self):
         self.container = Container(testing_mode=True)
         self.blob_rekognition_client = Mock()
+        self.blob_dynamodb_client = Mock()
 
     def set_up_use_case(self):
         use_case = self.container.get_labels
         use_case._blob_rekognition_client = self.blob_rekognition_client
+        use_case._blob_dynamodb_client = self.blob_dynamodb_client
         return use_case
 
     def test_call(self):
@@ -439,6 +491,34 @@ class TestGetLabels(unittest.TestCase):  # pragma: no cover
                 'blob_id': blob_id,
                 'labels': data
             }
+        )
+
+    def test_unsuccessful_call_due_to_invalid_blob_format(self):
+        self.blob_rekognition_client.detect_labels = Mock(side_effect=InvalidBlobHasBeenUploaded(''))
+        self.blob_dynamodb_client.update_status = Mock()
+        use_case = self.set_up_use_case()
+
+        blob_id = 'blob_id'
+        with self.assertRaises(RecognitionStepHasBeenFailed):
+            use_case(blob_id)
+
+        self.blob_rekognition_client.detect_labels.assert_called_with(blob_id)
+        self.blob_dynamodb_client.update_status.assert_called_with(
+            blob_id, RecognitionStatus.INVALID_BLOB_HAS_BEEN_UPLOADED.value
+        )
+
+    def test_unsuccessful_call_due_to_too_large_blob(self):
+        self.blob_rekognition_client.detect_labels = Mock(side_effect=TooLargeBlobHasBeenUploaded(''))
+        self.blob_dynamodb_client.update_status = Mock()
+        use_case = self.set_up_use_case()
+
+        blob_id = 'blob_id'
+        with self.assertRaises(RecognitionStepHasBeenFailed):
+            use_case(blob_id)
+
+        self.blob_rekognition_client.detect_labels.assert_called_with(blob_id)
+        self.blob_dynamodb_client.update_status.assert_called_with(
+            blob_id, RecognitionStatus.TOO_LARGE_BLOB_HAS_BEEN_UPLOADED.value
         )
 
 
@@ -810,6 +890,38 @@ class TestGetRecognitionResult(unittest.TestCase):  # pragma: no cover
         self.assertEqual('Recognition is in progress.', str(exception))
         self.assertEqual(
             {'blob_id': 'blob_id', 'status': RecognitionStatus.IN_PROGRESS.value},
+            exception.payload
+        )
+        self.blob_dynamodb_client.get_blob.assert_called_with('blob_id')
+
+    def test_unsuccessful_result_retrieving_for_invalid_uploaded_blob(self):
+        self.blob['status'] = RecognitionStatus.INVALID_BLOB_HAS_BEEN_UPLOADED.value
+        self.blob_dynamodb_client.get_blob = Mock(return_value=self.blob)
+        use_case = self.set_up_use_case()
+
+        with self.assertRaises(InvalidBlobHasBeenUploaded) as cm:
+            use_case('blob_id')
+
+        exception = cm.exception
+        self.assertEqual('Invalid image format has been uploaded.', str(exception))
+        self.assertEqual(
+            {'blob_id': 'blob_id', 'status': RecognitionStatus.INVALID_BLOB_HAS_BEEN_UPLOADED.value},
+            exception.payload
+        )
+        self.blob_dynamodb_client.get_blob.assert_called_with('blob_id')
+
+    def test_unsuccessful_result_retrieving_for_too_large_blob(self):
+        self.blob['status'] = RecognitionStatus.TOO_LARGE_BLOB_HAS_BEEN_UPLOADED.value
+        self.blob_dynamodb_client.get_blob = Mock(return_value=self.blob)
+        use_case = self.set_up_use_case()
+
+        with self.assertRaises(TooLargeBlobHasBeenUploaded) as cm:
+            use_case('blob_id')
+
+        exception = cm.exception
+        self.assertEqual('Too large image has been uploaded.', str(exception))
+        self.assertEqual(
+            {'blob_id': 'blob_id', 'status': RecognitionStatus.TOO_LARGE_BLOB_HAS_BEEN_UPLOADED.value},
             exception.payload
         )
         self.blob_dynamodb_client.get_blob.assert_called_with('blob_id')

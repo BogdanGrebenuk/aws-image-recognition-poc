@@ -2,6 +2,8 @@ import json
 
 from botocore.exceptions import ClientError
 
+from app.exception import InvalidBlobHasBeenUploaded, TooLargeBlobHasBeenUploaded
+
 
 class BlobS3Client:
 
@@ -103,7 +105,7 @@ class BlobDynamoDBClient:
                     'confidence': float(label_item.get('M').get('confidence').get('N')),
                     'parents': [parent.get('S') for parent in label_item.get('M').get('parents').get('L')]
                 }
-                for label_item in item.get('labels').get('L')
+                for label_item in item.get('labels', {}).get('L', [])
             ]
         }
         return blob
@@ -134,13 +136,24 @@ class BlobRekognitionClient:
         self._min_confidence = min_confidence
 
     def detect_labels(self, blob_id):
-        return self._client.detect_labels(
-            Image={
-                'S3Object': {
-                    'Bucket': self._bucket_name,
-                    'Name': blob_id
-                }
-            },
-            MaxLabels=self._max_labels,
-            MinConfidence=self._min_confidence
-        )
+        try:
+            return self._client.detect_labels(
+                Image={
+                    'S3Object': {
+                        'Bucket': self._bucket_name,
+                        'Name': blob_id
+                    }
+                },
+                MaxLabels=self._max_labels,
+                MinConfidence=self._min_confidence
+            )
+        except self._client.exceptions.InvalidImageFormatException as e:
+            raise InvalidBlobHasBeenUploaded(
+                message='Invalid image format has been uploaded.',
+                payload={'blob_id': blob_id}
+            )
+        except self._client.exceptions.ImageTooLargeException as e:
+            raise TooLargeBlobHasBeenUploaded(
+                message='Too large image has been uploaded.',
+                payload={'blob_id': blob_id}
+            )

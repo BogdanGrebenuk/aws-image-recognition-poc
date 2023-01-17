@@ -5,7 +5,7 @@ from marshmallow.validate import URL
 from .domain import RecognitionStatus
 from .dto import UploadInitializingResult, RecognitionStepFunctionResult, BlobRecognitionResult
 from .exception import CallbackUrlIsNotValid, BlobWasNotFound, BlobIsNotUploadedYet, BlobUploadTimedOut, \
-    BlobRecognitionIsInProgress
+    BlobRecognitionIsInProgress, InvalidBlobHasBeenUploaded, TooLargeBlobHasBeenUploaded, RecognitionStepHasBeenFailed
 
 
 class InitializeUploadListening:
@@ -88,13 +88,26 @@ class StartRecognition:
 
 class GetLabels:
 
-    def __init__(self, blob_rekognition_client):
+    def __init__(
+            self,
+            blob_rekognition_client,
+            blob_dynamodb_client
+            ):
         self._blob_rekognition_client = blob_rekognition_client
+        self._blob_dynamodb_client = blob_dynamodb_client
 
     def __call__(self, blob_id):
+        try:
+            raw_labels_data = self._blob_rekognition_client.detect_labels(blob_id)
+        except InvalidBlobHasBeenUploaded as e:
+            self._blob_dynamodb_client.update_status(blob_id, RecognitionStatus.INVALID_BLOB_HAS_BEEN_UPLOADED.value)
+            raise RecognitionStepHasBeenFailed(message=str(e), payload={'blob_id': blob_id})
+        except TooLargeBlobHasBeenUploaded as e:
+            self._blob_dynamodb_client.update_status(blob_id, RecognitionStatus.TOO_LARGE_BLOB_HAS_BEEN_UPLOADED.value)
+            raise RecognitionStepHasBeenFailed(message=str(e), payload={'blob_id': blob_id})
         return RecognitionStepFunctionResult(
             blob_id=blob_id,
-            labels=self._blob_rekognition_client.detect_labels(blob_id)
+            labels=raw_labels_data
         )
 
 
@@ -208,6 +221,16 @@ class GetRecognitionResult:
         elif status == RecognitionStatus.IN_PROGRESS.value:
             raise BlobRecognitionIsInProgress(
                 message='Recognition is in progress.',
+                payload={'blob_id': blob_id, 'status': status}
+            )
+        elif status == RecognitionStatus.INVALID_BLOB_HAS_BEEN_UPLOADED.value:
+            raise InvalidBlobHasBeenUploaded(
+                message='Invalid image format has been uploaded.',
+                payload={'blob_id': blob_id, 'status': status}
+            )
+        elif status == RecognitionStatus.TOO_LARGE_BLOB_HAS_BEEN_UPLOADED.value:
+            raise TooLargeBlobHasBeenUploaded(
+                message='Too large image has been uploaded.',
                 payload={'blob_id': blob_id, 'status': status}
             )
         return BlobRecognitionResult(
