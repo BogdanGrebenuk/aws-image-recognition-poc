@@ -20,7 +20,7 @@ OTHER IaC tool.
 
 Solution overview is presented on the diagram below:
 
-![alt text](https://www.dropbox.com/s/w57u7e6e7mp6xyc/staircase-test-task-architecture.jpg?dl=0)
+![alt text](https://www.dropbox.com/s/w57u7e6e7mp6xyc/staircase-test-task-architecture.jpg?raw=1)
 
 1. **POST /blobs** triggers lambda that will:
     * generate pre-signed url for blob uploading (default ttl is 30 seconds);
@@ -64,4 +64,4 @@ For example, recognition process that failed due to invalid image uploaded still
 ### Test coverage
 Unit tests were written for each service.
 
-![alt text](https://www.dropbox.com/s/bz8z4ovsw7lt6h5/coverage.png?dl=0)
+![alt text](https://www.dropbox.com/s/bz8z4ovsw7lt6h5/coverage.png?raw=1)
