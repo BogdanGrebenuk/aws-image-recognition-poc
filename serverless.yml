@@ -88,6 +88,8 @@ functions:
     handler: app.handler.save_labels_handler
   invokeCallback:
     handler: app.handler.invoke_callback_handler
+  unexpectedErrorFallback:
+    handler: app.handler.unexpected_error_fallback_handler
   getRecognitionResult:
     handler: app.handler.get_recognition_result_handler
     httpApi:
@@ -126,29 +128,43 @@ stepFunctions:
       name: RecognitionStepFunction
       definition:
         Comment: "todo" # todo
-        StartAt: GetLabels
+        StartAt: RecognitionFlow
         States:
-          GetLabels:
-            Type: Task
-            Resource: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${self:service}-${self:custom.stage}-getLabels
-            Next: TransformLabels
+          RecognitionFlow:
+            Type: Parallel
+            Branches:
+              - StartAt: GetLabels
+                States:
+                  GetLabels:
+                    Type: Task
+                    Resource: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${self:service}-${self:custom.stage}-getLabels
+                    Next: TransformLabels
+                  TransformLabels:
+                    Type: Task
+                    Resource: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${self:service}-${self:custom.stage}-transformLabels
+                    Next: SaveLabels
+                  SaveLabels:
+                    Type: Task
+                    Resource: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${self:service}-${self:custom.stage}-saveLabels
+                    Next: InvokeCallback
+                  InvokeCallback:
+                    Type: Task
+                    Resource: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${self:service}-${self:custom.stage}-invokeCallback
+                    End: true
             Catch:
               - ErrorEquals: ["RecognitionStepHasBeenFailed"]
                 Next: RecognitionPredefinedErrorFallback
-          TransformLabels:
-            Type: Task
-            Resource: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${self:service}-${self:custom.stage}-transformLabels
-            Next: SaveLabels
-          SaveLabels:
-            Type: Task
-            Resource: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${self:service}-${self:custom.stage}-saveLabels
-            Next: InvokeCallback
-          InvokeCallback:
-            Type: Task
-            Resource: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${self:service}-${self:custom.stage}-invokeCallback
+              - ErrorEquals: ["States.ALL"]
+                Next: UnexpectedErrorFallback
             End: true
           RecognitionPredefinedErrorFallback:
             Type: Pass
+            End: true
+          UnexpectedErrorFallback:
+            Type: Task
+            Parameters:
+              ExecutionName.$: "$$.Execution.Name"
+            Resource: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${self:service}-${self:custom.stage}-unexpectedErrorFallback
             End: true
 
 resources:

@@ -12,3 +12,4 @@ class RecognitionStatus(Enum):
     FAILED_DUE_TO_CALLBACK_TIME_OUT = 'failed-due-to-callback-time-out'
     FAILED_DUE_TO_CALLBACK_CONNECTION = 'failed-due-to-callback-connection'
     NOT_FOUND = 'not-found'
+    UNEXPECTED_ERROR = 'unexpected-error'

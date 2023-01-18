@@ -117,12 +117,10 @@ class BlobStepFunctionClient:
         self._client = client
         self._state_machine_arn = state_machine_arn
 
-    def launch(self, blob_id, execution_name=None):
-        if execution_name is None:
-            execution_name = f'uploading-execution-{blob_id}'
+    def launch(self, blob_id):
         return self._client.start_execution(
             stateMachineArn=self._state_machine_arn,
-            name=execution_name,
+            name=blob_id,
             input=json.dumps({'blob_id': blob_id})
         )
 

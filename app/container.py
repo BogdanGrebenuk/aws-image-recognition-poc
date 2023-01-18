@@ -7,10 +7,9 @@ import requests
 from .client import BlobS3Client, BlobDynamoDBClient, BlobStepFunctionClient, BlobRekognitionClient
 from .lambdas import CheckUploadingHandler, ImageHasBeenUploadedHandler, \
     GetLabelsHandler, TransformLabelsHandler, SaveLabelsHandler, InvokeCallbackHandler, \
-    GetRecognitionResultHandler, uuid_generator, InitializeUploadListeningHandler
+    GetRecognitionResultHandler, uuid_generator, InitializeUploadListeningHandler, UnexpectedErrorFallbackHandler
 from .usecase import UrlValidator, InitializeUploadListening, CheckUploading, StartRecognition, GetLabels, \
-    TransformLabels, SaveLabels, InvokeCallback, Invoker, GetRecognitionResult
-
+    TransformLabels, SaveLabels, InvokeCallback, Invoker, GetRecognitionResult, HandleUnexpectedError
 
 BLOBS_BUCKET_NAME = os.environ.get('blobsBucketName')
 BLOBS_TABLE_NAME = os.environ.get('blobsTableName')
@@ -109,6 +108,10 @@ class Container:
             invoker=self.invoker
         )
 
+        self.handle_unexpected_error = HandleUnexpectedError(
+            blob_dynamodb_client=self.blob_dynamodb_client
+        )
+
         self.get_recognition_result = GetRecognitionResult(
             blob_dynamodb_client=self.blob_dynamodb_client
         )
@@ -142,6 +145,10 @@ class Container:
 
         self.invoke_callback_handler = InvokeCallbackHandler(
             invoke_callback=self.invoke_callback
+        )
+
+        self.unexpected_error_fallback_handler = UnexpectedErrorFallbackHandler(
+            handle_unexpected_error=self.handle_unexpected_error
         )
 
         self.get_recognition_result_handler = GetRecognitionResultHandler(

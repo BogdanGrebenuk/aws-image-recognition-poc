@@ -5,7 +5,8 @@ from marshmallow.validate import URL
 from .domain import RecognitionStatus
 from .dto import UploadInitializingResult, RecognitionStepFunctionResult, BlobRecognitionResult
 from .exception import CallbackUrlIsNotValid, BlobWasNotFound, BlobIsNotUploadedYet, BlobUploadTimedOut, \
-    BlobRecognitionIsInProgress, InvalidBlobHasBeenUploaded, TooLargeBlobHasBeenUploaded, RecognitionStepHasBeenFailed
+    BlobRecognitionIsInProgress, InvalidBlobHasBeenUploaded, TooLargeBlobHasBeenUploaded, RecognitionStepHasBeenFailed, \
+    UnexpectedErrorOccurred
 
 
 class InitializeUploadListening:
@@ -195,6 +196,15 @@ class Invoker:
             return self.CONNECTION_ERROR
 
 
+class HandleUnexpectedError:
+
+    def __init__(self, blob_dynamodb_client):
+        self._blob_dynamodb_client = blob_dynamodb_client
+
+    def __call__(self, blob_id):
+        self._blob_dynamodb_client.update_status(blob_id, RecognitionStatus.UNEXPECTED_ERROR.value)
+
+
 class GetRecognitionResult:
 
     def __init__(self, blob_dynamodb_client):
@@ -231,6 +241,11 @@ class GetRecognitionResult:
         elif status == RecognitionStatus.TOO_LARGE_BLOB_HAS_BEEN_UPLOADED.value:
             raise TooLargeBlobHasBeenUploaded(
                 message='Too large image has been uploaded.',
+                payload={'blob_id': blob_id, 'status': status}
+            )
+        elif status == RecognitionStatus.UNEXPECTED_ERROR.value:
+            raise UnexpectedErrorOccurred(
+                message='Unexpected error occurred while recognition, try again.',
                 payload={'blob_id': blob_id, 'status': status}
             )
         return BlobRecognitionResult(

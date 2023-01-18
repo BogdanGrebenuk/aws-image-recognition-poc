@@ -37,3 +37,7 @@ class TooLargeBlobHasBeenUploaded(RecognitionBaseException):
 
 class RecognitionStepHasBeenFailed(RecognitionBaseException):
     ... # todo
+
+
+class UnexpectedErrorOccurred(RecognitionBaseException):
+    ... # todo

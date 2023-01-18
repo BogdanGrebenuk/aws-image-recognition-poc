@@ -14,7 +14,8 @@ from app.exception import (
     BlobWasNotFound,
     BlobIsNotUploadedYet,
     BlobUploadTimedOut,
-    BlobRecognitionIsInProgress, InvalidBlobHasBeenUploaded, TooLargeBlobHasBeenUploaded, RecognitionStepHasBeenFailed
+    BlobRecognitionIsInProgress, InvalidBlobHasBeenUploaded, TooLargeBlobHasBeenUploaded, RecognitionStepHasBeenFailed,
+    UnexpectedErrorOccurred
 )
 from app.usecase import UrlValidator, Invoker
 
@@ -238,21 +239,7 @@ class TestUploadingStepFunctionClient(unittest.TestCase):  # pragma: no cover
 
         self.actual_client.start_execution.assert_called_with(
             stateMachineArn=self.arn,
-            name=f'uploading-execution-{blob_id}',
-            input=json.dumps({'blob_id': blob_id})
-        )
-
-    def test_launch_with_specified_execution_name(self):
-        self.actual_client.start_execution = Mock()
-        client = self.set_up_client()
-
-        blob_id = 'blob_id'
-        execution_name = 'execution_name'
-        client.launch(blob_id, execution_name)
-
-        self.actual_client.start_execution.assert_called_with(
-            stateMachineArn=self.arn,
-            name=execution_name,
+            name=blob_id,
             input=json.dumps({'blob_id': blob_id})
         )
 
@@ -764,6 +751,27 @@ class TestInvokeCallback(unittest.TestCase):  # pragma: no cover
         )
 
 
+class TestHandleUnexpectedError(unittest.TestCase):
+
+    def setUp(self):
+        self.container = Container(testing_mode=True)
+        self.blob_dynamodb_client = Mock()
+
+    def set_up_use_case(self):
+        use_case = self.container.handle_unexpected_error
+        use_case._blob_dynamodb_client = self.blob_dynamodb_client
+        return use_case
+
+    def test_invocation(self):
+        self.blob_dynamodb_client.update_status = Mock()
+        use_case = self.set_up_use_case()
+
+        blob_id = 'blob_id'
+        use_case(blob_id)
+
+        self.blob_dynamodb_client.update_status.assert_called_with(blob_id, RecognitionStatus.UNEXPECTED_ERROR.value)
+
+
 class TestGetRecognitionResult(unittest.TestCase):  # pragma: no cover
 
     def setUp(self):
@@ -922,6 +930,22 @@ class TestGetRecognitionResult(unittest.TestCase):  # pragma: no cover
         self.assertEqual('Too large image has been uploaded.', str(exception))
         self.assertEqual(
             {'blob_id': 'blob_id', 'status': RecognitionStatus.TOO_LARGE_BLOB_HAS_BEEN_UPLOADED.value},
+            exception.payload
+        )
+        self.blob_dynamodb_client.get_blob.assert_called_with('blob_id')
+
+    def test_unsuccessful_result_retrieving_due_to_unexpected_error(self):
+        self.blob['status'] = RecognitionStatus.UNEXPECTED_ERROR.value
+        self.blob_dynamodb_client.get_blob = Mock(return_value=self.blob)
+        use_case = self.set_up_use_case()
+
+        with self.assertRaises(UnexpectedErrorOccurred) as cm:
+            use_case('blob_id')
+
+        exception = cm.exception
+        self.assertEqual('Unexpected error occurred while recognition, try again.', str(exception))
+        self.assertEqual(
+            {'blob_id': 'blob_id', 'status': RecognitionStatus.UNEXPECTED_ERROR.value},
             exception.payload
         )
         self.blob_dynamodb_client.get_blob.assert_called_with('blob_id')
@@ -1162,3 +1186,31 @@ class TestGetRecognitionResultHandler(unittest.TestCase):  # pragma: no cover
             },
             {**result, 'body': json.loads(result['body'])}
         )
+
+
+class TestUnexpectedErrorFallbackHandler(unittest.TestCase):
+
+    def setUp(self):
+        self.container = Container(testing_mode=True)
+        self.handle_unexpected_error = Mock()
+
+    def set_up_handler(self):
+        handler = self.container.unexpected_error_fallback_handler
+        handler._handle_unexpected_error = self.handle_unexpected_error
+        return handler
+
+    def test_successful_handling(self):
+        handler = self.set_up_handler()
+
+        blob_id = 'blob_id'
+        event = {'ExecutionName': blob_id}
+        handler.handle(event, {})
+
+        self.handle_unexpected_error.assert_called_with(blob_id)
+
+    def test_handling_when_execution_name_is_not_specified(self):
+        handler = self.set_up_handler()
+
+        handler.handle({}, {})
+
+        self.handle_unexpected_error.assert_not_called()

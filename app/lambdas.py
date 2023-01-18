@@ -5,7 +5,7 @@ from json import dumps, loads
 from uuid import uuid4
 
 from .exception import CallbackUrlIsNotValid, BlobIsNotUploadedYet, BlobUploadTimedOut, BlobRecognitionIsInProgress, \
-    BlobWasNotFound, InvalidBlobHasBeenUploaded, TooLargeBlobHasBeenUploaded
+    BlobWasNotFound, InvalidBlobHasBeenUploaded, TooLargeBlobHasBeenUploaded, UnexpectedErrorOccurred
 
 Response = namedtuple('Response', ['body', 'status_code'])
 
@@ -112,6 +112,18 @@ class InvokeCallbackHandler:
         return self._invoke_callback(blob_id, labels).as_dict()
 
 
+class UnexpectedErrorFallbackHandler:
+
+    def __init__(self, handle_unexpected_error):
+        self._handle_unexpected_error = handle_unexpected_error
+
+    def handle(self, event, context):
+        blob_id = event.get('ExecutionName')
+        if blob_id is None:
+            return
+        self._handle_unexpected_error(blob_id)
+
+
 class GetRecognitionResultHandler:
 
     def __init__(self, get_recognition_result):
@@ -128,7 +140,8 @@ class GetRecognitionResultHandler:
                 BlobUploadTimedOut,
                 BlobRecognitionIsInProgress,
                 InvalidBlobHasBeenUploaded,
-                TooLargeBlobHasBeenUploaded
+                TooLargeBlobHasBeenUploaded,
+                UnexpectedErrorOccurred
         ) as e:
             return Response(
                 body={
