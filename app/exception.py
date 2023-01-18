@@ -1,4 +1,13 @@
+"""Module with custom exceptions."""
+
+
 class RecognitionBaseException(Exception):
+    """Base exception for package-related errors.
+
+    Attributes:
+        payload (dict): Additional data of error context.
+
+    """
 
     def __init__(self, message, payload=None):
         if payload is None:
@@ -8,36 +17,36 @@ class RecognitionBaseException(Exception):
 
 
 class CallbackUrlIsNotValid(RecognitionBaseException):
-    ... # todo
+    """Called when invalid callback url is passed in."""
 
 
 class BlobWasNotFound(RecognitionBaseException):
-    ... # todo
+    """Called when requested blob is not found."""""
 
 
 class BlobIsNotUploadedYet(RecognitionBaseException):
-    ... # todo
+    """Called when requested blob has not been uploaded yet."""
 
 
 class BlobUploadTimedOut(RecognitionBaseException):
-    ... # todo
+    """Called when requested blob upload is timed out."""
 
 
 class BlobRecognitionIsInProgress(RecognitionBaseException):
-    ... # todo
+    """Called when blob recognition process hasn't completed yet."""
 
 
 class InvalidBlobHasBeenUploaded(RecognitionBaseException):
-    ... # todo
+    """Called when invalid blob has been uploaded."""
 
 
 class TooLargeBlobHasBeenUploaded(RecognitionBaseException):
-    ... # todo
+    """Called when too large blob has been uploaded."""
 
 
 class RecognitionStepHasBeenFailed(RecognitionBaseException):
-    ... # todo
+    """Called when recognition step has been failed."""
 
 
 class UnexpectedErrorOccurred(RecognitionBaseException):
-    ... # todo
+    """Called when unexpected error occurred while recognition."""

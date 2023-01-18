@@ -1,0 +1,99 @@
+# copied from the https://gist.github.com/movsiienko/e2f8bcffe1b9dc6c1cc21e6346fe7e78
+openapi: 3.0.1
+info:
+  title: Recognition API
+  version: 1.0.0
+servers:
+- url: <your service url>
+tags:
+- name: blobs
+  description: Blobs endpoints
+paths:
+  /blobs:
+    post:
+      tags:
+      - blobs
+      summary: Create blob. Callback json body should be in the same schema as GET endpoint response
+      operationId: createBlob
+      requestBody:
+        description: Pet object that needs to be added to the store
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                callback_url:
+                  type: string
+                  format: url
+              required:
+              - callback_url
+            example:
+              callback_url: https://webhook.site/67415cb9-0949-45e4-8b7a-60ca466d960a
+        required: true
+      responses:
+        201:
+          description: blob was created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  blob_id:
+                    type: string
+                    format: uuid
+                    description: Blob id, can be used to get info about blob
+                  callback_url:
+                    type: string
+                    format: url
+                    description: Url, where callback with recognition results will be sent
+                  upload_url:
+                    type: string
+                    format: url
+                    description: Url for uploading image
+              example:
+                blob_id: b1bb07b8-04c6-4f3e-9574-3c1d633f7a8e
+                callback_url: https://webhook.site/67415cb9-0949-45e4-8b7a-60ca466d960a
+                upload_url: https://blobs.s3.eu-central-1.amazonaws.com/b1bb07b8-04c6-4f3e-9574-3c1d633f7a8e
+
+        400:
+          description: Invalid callback url supplied
+  /blobs/{blob_id}:
+    get:
+      tags:
+      - blobs
+      summary: Get blob info
+      operationId: getBlob
+      parameters:
+      - name: blob_id
+        in: path
+        required: true
+        schema:
+          type: string
+          format: uuid
+      responses:
+        200:
+          description: Blob info
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  blob_id:
+                    type: string
+                    format: uuid
+                    description: Blob ID
+                  labels:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        label:
+                          type: string
+                        confidence:
+                          type: number
+                        parents:
+                          type: array
+                          items:
+                            type: string
+        404:
+          description: Blob not found

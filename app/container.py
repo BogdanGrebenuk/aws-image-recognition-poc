@@ -1,28 +1,63 @@
+"""Module with DI configuration."""
+
 import os
-from functools import partial
 
 import boto3
 import requests
 
-from .client import BlobS3Client, BlobDynamoDBClient, BlobStepFunctionClient, BlobRekognitionClient
-from .lambdas import CheckUploadingHandler, ImageHasBeenUploadedHandler, \
-    GetLabelsHandler, TransformLabelsHandler, SaveLabelsHandler, InvokeCallbackHandler, \
-    GetRecognitionResultHandler, uuid_generator, InitializeUploadListeningHandler, UnexpectedErrorFallbackHandler
-from .usecase import UrlValidator, InitializeUploadListening, CheckUploading, StartRecognition, GetLabels, \
-    TransformLabels, SaveLabels, InvokeCallback, Invoker, GetRecognitionResult, HandleUnexpectedError
+from .client import (
+    BlobS3Client,
+    BlobDynamoDBClient,
+    BlobStepFunctionClient,
+    BlobRekognitionClient
+)
+from .lambdas import (
+    CheckUploadingHandler,
+    ImageHasBeenUploadedHandler,
+    GetLabelsHandler,
+    TransformLabelsHandler,
+    SaveLabelsHandler,
+    InvokeCallbackHandler,
+    GetRecognitionResultHandler,
+    uuid_generator,
+    InitializeUploadListeningHandler,
+    UnexpectedErrorFallbackHandler
+)
+from .usecase import (
+    UrlValidator,
+    InitializeUploadListening,
+    CheckUploading,
+    StartRecognition,
+    GetLabels,
+    TransformLabels,
+    SaveLabels,
+    InvokeCallback,
+    Invoker,
+    GetRecognitionResult,
+    HandleUnexpectedError
+)
+
 
 BLOBS_BUCKET_NAME = os.environ.get('blobsBucketName')
 BLOBS_TABLE_NAME = os.environ.get('blobsTableName')
-PRESIGNED_URL_TTL = os.environ.get('presignedUrlTTL')
+PRESIGNED_URL_TTL = os.environ.get('presignedUrlTTL', 30)
 UPLOADING_WAITING_TIME = os.environ.get('uploadingWaitingTime')
 UPLOADING_STEP_FUNCTION_ARN = os.environ.get('uploadingStepFunctionArn')
 RECOGNITION_STEP_FUNCTION_ARN = os.environ.get('recognitionStepFunctionArn')
+MAX_LABELS = os.environ.get('maxLabels', 10)
+MIN_CONFIDENCE = os.environ.get('minConfidence', 50)
+CALLBACK_TIMEOUT = os.environ.get('callbackTimeout', 10)
 
 
 class Container:
 
     def __init__(self, *, testing_mode=False):
+        """Container initializer.
 
+        Args:
+            testing_mode (bool): Whether container should be set up in testing mode or not.
+
+        """
         if testing_mode:
             s3_client = object()
             dynamodb_client = object()
@@ -39,7 +74,7 @@ class Container:
         self.blob_s3_client = BlobS3Client(
             client=s3_client,
             bucket_name=BLOBS_BUCKET_NAME,
-            ttl=PRESIGNED_URL_TTL
+            ttl=int(PRESIGNED_URL_TTL)
         )
 
         self.blob_dynamodb_client = BlobDynamoDBClient(
@@ -60,8 +95,8 @@ class Container:
         self.blob_rekognition_client = BlobRekognitionClient(
             client=rekognition_client,
             bucket_name=BLOBS_BUCKET_NAME,
-            max_labels=10,  # todo: move to env var
-            min_confidence=50  # todo: move to env var
+            max_labels=int(MAX_LABELS),
+            min_confidence=int(MIN_CONFIDENCE)
         )
 
         # services
@@ -70,7 +105,7 @@ class Container:
 
         self.invoker = Invoker(
             http_invoke=requests.post,
-            timeout=10  # todo: move to env var
+            timeout=int(CALLBACK_TIMEOUT)
         )
 
         # use cases

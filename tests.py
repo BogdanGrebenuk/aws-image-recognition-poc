@@ -14,7 +14,10 @@ from app.exception import (
     BlobWasNotFound,
     BlobIsNotUploadedYet,
     BlobUploadTimedOut,
-    BlobRecognitionIsInProgress, InvalidBlobHasBeenUploaded, TooLargeBlobHasBeenUploaded, RecognitionStepHasBeenFailed,
+    BlobRecognitionIsInProgress,
+    InvalidBlobHasBeenUploaded,
+    TooLargeBlobHasBeenUploaded,
+    RecognitionStepHasBeenFailed,
     UnexpectedErrorOccurred
 )
 from app.usecase import UrlValidator, Invoker

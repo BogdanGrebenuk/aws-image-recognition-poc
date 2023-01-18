@@ -1,15 +1,36 @@
+"""Module with possible use-cases of recognition process."""
+
 import requests.exceptions
 from marshmallow.exceptions import ValidationError
 from marshmallow.validate import URL
 
 from .domain import RecognitionStatus
-from .dto import UploadInitializingResult, RecognitionStepFunctionResult, BlobRecognitionResult
-from .exception import CallbackUrlIsNotValid, BlobWasNotFound, BlobIsNotUploadedYet, BlobUploadTimedOut, \
-    BlobRecognitionIsInProgress, InvalidBlobHasBeenUploaded, TooLargeBlobHasBeenUploaded, RecognitionStepHasBeenFailed, \
+from .dto import (
+    UploadInitializingResult,
+    RecognitionStepFunctionResult,
+    BlobRecognitionResult
+)
+from .exception import (
+    CallbackUrlIsNotValid,
+    BlobWasNotFound,
+    BlobIsNotUploadedYet,
+    BlobUploadTimedOut,
+    BlobRecognitionIsInProgress,
+    InvalidBlobHasBeenUploaded,
+    TooLargeBlobHasBeenUploaded,
+    RecognitionStepHasBeenFailed,
     UnexpectedErrorOccurred
+)
 
 
 class InitializeUploadListening:
+    """Use-case for initializing upload listening.
+
+    Will validate callback_url, save blob data to the DynamoDB table,
+    start 'uploading step function' for observing uploading process
+    and generate S3 pre-signed url.
+
+    """
 
     def __init__(
             self,
@@ -46,6 +67,11 @@ class InitializeUploadListening:
 
 
 class UrlValidator:
+    """Simple service for validating urls.
+
+    Wrapper for marshmallow.validate.URL class.
+
+    """
 
     def __init__(self, schemes=None):
         if schemes is None:
@@ -61,6 +87,12 @@ class UrlValidator:
 
 
 class CheckUploading:
+    """Use-case for checking blob uploading.
+
+    If pre-signed url was never used to upload file / failed while uploading,
+    we'll set 'not uploaded' status for this blob.
+
+    """
 
     def __init__(self, blob_s3_client, blob_dynamodb_client):
         self._blob_s3_client = blob_s3_client
@@ -73,6 +105,11 @@ class CheckUploading:
 
 
 class StartRecognition:
+    """Use-case for starting recognition process.
+
+    Will move recognition status to the 'in progress' and start step function.
+
+    """
 
     def __init__(
             self,
@@ -88,6 +125,7 @@ class StartRecognition:
 
 
 class GetLabels:
+    """Use-case for getting labels from Rekognition service."""
 
     def __init__(
             self,
@@ -113,6 +151,7 @@ class GetLabels:
 
 
 class TransformLabels:
+    """Use-case for normalizing labels data."""
 
     def __call__(self, blob_id, raw_labels_data):
         return RecognitionStepFunctionResult(
@@ -133,6 +172,7 @@ class TransformLabels:
 
 
 class SaveLabels:
+    """Use-case for saving labels to the DynamoDB."""
 
     def __init__(self, blob_dynamodb_client):
         self._blob_dynamodb_client = blob_dynamodb_client
@@ -146,6 +186,12 @@ class SaveLabels:
 
 
 class InvokeCallback:
+    """Use-case for invoking callback with recognition result.
+
+    If callback invocation was unsuccessful, recognition process still will be
+    treated as 'successful'.
+
+    """
 
     def __init__(self, blob_dynamodb_client, invoker):
         self._blob_dynamodb_client = blob_dynamodb_client
@@ -174,6 +220,7 @@ class InvokeCallback:
 
 
 class Invoker:
+    """Simple service for invoking callback."""
 
     SUCCESS = 0
     CALLBACK_FAILURE = 1
@@ -197,6 +244,10 @@ class Invoker:
 
 
 class HandleUnexpectedError:
+    """Use-case for handling unexpected errors
+    that can occur while performing recognition step function.
+
+    """
 
     def __init__(self, blob_dynamodb_client):
         self._blob_dynamodb_client = blob_dynamodb_client
@@ -206,6 +257,7 @@ class HandleUnexpectedError:
 
 
 class GetRecognitionResult:
+    """Use-case for getting recognition result."""
 
     def __init__(self, blob_dynamodb_client):
         self._blob_dynamodb_client = blob_dynamodb_client

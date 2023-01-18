@@ -1,3 +1,5 @@
+"""Module with lambda handlers definition."""
+
 from .container import Container
 
 

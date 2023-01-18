@@ -1,3 +1,5 @@
+"""Module with data transfer objects."""
+
 from dataclasses import dataclass, asdict
 
 

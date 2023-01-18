@@ -1,7 +1,10 @@
+"""Module with domain-related code."""
+
 from enum import Enum
 
 
 class RecognitionStatus(Enum):
+    """Enum with possible statuses of recognition process."""
     WAITING_FOR_UPLOAD = 'waiting-for-upload'
     UPLOAD_TIMED_OUT = 'upload-timed-out'
     IN_PROGRESS = 'in-progress'

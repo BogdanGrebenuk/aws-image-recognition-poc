@@ -1,18 +1,35 @@
+"""Module with actual lambda handlers."""
+
 from collections import namedtuple
 from functools import wraps
 from http import HTTPStatus
 from json import dumps, loads
 from uuid import uuid4
 
-from .exception import CallbackUrlIsNotValid, BlobIsNotUploadedYet, BlobUploadTimedOut, BlobRecognitionIsInProgress, \
-    BlobWasNotFound, InvalidBlobHasBeenUploaded, TooLargeBlobHasBeenUploaded, UnexpectedErrorOccurred
+from .exception import (
+    CallbackUrlIsNotValid,
+    BlobIsNotUploadedYet,
+    BlobUploadTimedOut,
+    BlobRecognitionIsInProgress,
+    BlobWasNotFound,
+    InvalidBlobHasBeenUploaded,
+    TooLargeBlobHasBeenUploaded,
+    UnexpectedErrorOccurred
+)
+
 
 Response = namedtuple('Response', ['body', 'status_code'])
+"""namedtuple: Simple response structure  
+
+Used for passing result from lambda to response formatter.
+"""
 
 
 def with_http_api_response_format(function):
+    """Decorator that wraps lambda handler to format its result to match HTTP API spec."""
     @wraps(function)
     def inner(*args, **kwargs):
+        """Formats lambda result to match HTTP API spec."""
         response = function(*args, **kwargs)
         return {
             'isBase64Encoded': False,
@@ -24,6 +41,7 @@ def with_http_api_response_format(function):
 
 
 class InitializeUploadListeningHandler:
+    """Lambda handler that generates pre-signed url and starts upload listening."""
 
     def __init__(self, id_generator, initialize_upload_listening):
         self._id_generator = id_generator
@@ -50,6 +68,9 @@ class InitializeUploadListeningHandler:
 
 
 class CheckUploadingHandler:
+    """Lambda handler that moves blob status to the 'not uploaded' one
+    if pre-signed url hasn't been used.
+    """
 
     def __init__(self, check_uploading):
         self._check_uploading = check_uploading
@@ -60,6 +81,7 @@ class CheckUploadingHandler:
 
 
 class ImageHasBeenUploadedHandler:
+    """Lambda handler that gets triggered when new file appears in the bucket."""
 
     def __init__(self, start_recognition):
         self._start_recognition = start_recognition
@@ -70,6 +92,11 @@ class ImageHasBeenUploadedHandler:
 
 
 class GetLabelsHandler:
+    """Lambda handler that calls Rekognition service and passes result forward.
+
+    Note: This is part of StepFunction.
+
+    """
 
     def __init__(self, get_labels):
         self._get_labels = get_labels
@@ -80,6 +107,11 @@ class GetLabelsHandler:
 
 
 class TransformLabelsHandler:
+    """Lambda handler that normalize labels and passes result forward.
+
+    Note: This is part of StepFunction.
+
+    """
 
     def __init__(self, transform_labels):
         self._transform_labels = transform_labels
@@ -91,6 +123,11 @@ class TransformLabelsHandler:
 
 
 class SaveLabelsHandler:
+    """Lambda handler that saves labels to the DynamoDB and passes result forward.
+
+    Note: This is part of StepFunction.
+
+    """
 
     def __init__(self, save_labels):
         self._save_labels = save_labels
@@ -102,7 +139,11 @@ class SaveLabelsHandler:
 
 
 class InvokeCallbackHandler:
+    """Lambda handler that invokes callback with recognition result.
 
+    Note: This is part of StepFunction.
+
+    """
     def __init__(self, invoke_callback):
         self._invoke_callback = invoke_callback
 
@@ -113,6 +154,12 @@ class InvokeCallbackHandler:
 
 
 class UnexpectedErrorFallbackHandler:
+    """Lambda handler that gets triggered when unexpected error occurs
+    while performing recognition process.
+
+    Note: This is part of StepFunction.
+
+    """
 
     def __init__(self, handle_unexpected_error):
         self._handle_unexpected_error = handle_unexpected_error
@@ -125,6 +172,7 @@ class UnexpectedErrorFallbackHandler:
 
 
 class GetRecognitionResultHandler:
+    """Lambda handler that returns recognition result."""
 
     def __init__(self, get_recognition_result):
         self._get_recognition_result = get_recognition_result
