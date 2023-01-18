@@ -7,8 +7,7 @@ Create API for recognition of images. API should have 2 endpoints:
 ended, and return upload_url for uploading pictures
 2. GET /blobs/{blob_id} - Should return information about recognition results for specified
 blob
-API should be done according to this OpenAPI specification https://gist.github.com/movsiienko/
-e2f8bcffe1b9dc6c1cc21e6346fe7e78
+API should be done according to this OpenAPI specification https://gist.github.com/movsiienko/e2f8bcffe1b9dc6c1cc21e6346fe7e78
 
 Requirements:
 1. You have to use Serverless framework for describing infrastructure. As a user I have to
@@ -21,7 +20,7 @@ OTHER IaC tool.
 
 Solution overview is presented on the diagram below:
 
-![alt text](https://www.dropbox.com/s/w57u7e6e7mp6xyc/staircase-test-task-architecture.jpg?dl=1)
+![alt text](https://www.dropbox.com/s/w57u7e6e7mp6xyc/staircase-test-task-architecture.jpg?dl=0)
 
 1. **POST /blobs** triggers lambda that will:
     * generate pre-signed url for blob uploading (default ttl is 30 seconds);
@@ -65,4 +64,4 @@ For example, recognition process that failed due to invalid image uploaded still
 ### Test coverage
 Unit tests were written for each service.
 
-![alt text](https://www.dropbox.com/s/bz8z4ovsw7lt6h5/coverage.png?dl=1)
+![alt text](https://www.dropbox.com/s/bz8z4ovsw7lt6h5/coverage.png?dl=0)
