@@ -19,7 +19,7 @@ package:
 
 custom:
   stage: ${opt:stage, self:provider.stage}
-  blobsBucketName: blobs-bucket-${self:custom.stage}
+  blobsBucketName: blobs-bucket-${self:custom.stage}-${aws:accountId}
   blobsTableName: blobs-table-${self:custom.stage}
   presignedUrlTTL: 30
   uploadingWaitingTime: 40

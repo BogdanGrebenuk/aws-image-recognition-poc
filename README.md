@@ -16,6 +16,17 @@ OTHER IaC tool.
 2. Code should be written in python
 3. It is okay to use any other AWS service
 
+## Deployment
+
+### Requirements
+1. Python3.9 installed;
+2. NodeJS (tested on 17 version);
+3. Serverless framework 3+.
+
+### Deploy
+1. Install dependencies (once) ``npm i``;
+2. Run ``sls deploy``.
+
 ## Architecture
 
 Solution overview is presented on the diagram below:
