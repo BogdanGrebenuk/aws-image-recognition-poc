@@ -27,6 +27,12 @@ OTHER IaC tool.
 1. Install dependencies (once) ``npm i``;
 2. Run ``sls deploy``.
 
+## Image uploading
+
+To upload local image, run following command:
+
+``curl -sX PUT --upload-file <path-to-your-file> "<pre-signed url>""``
+
 ## Architecture
 
 Solution overview is presented on the diagram below:
