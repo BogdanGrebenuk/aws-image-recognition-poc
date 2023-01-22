@@ -47,7 +47,8 @@ class BlobS3Client:
             'put_object',
             Params={
                 'Bucket': self._bucket_name,
-                'Key': key
+                'Key': key,
+                'ContentType': 'application/octet-stream'
             },
             ExpiresIn=self._ttl,
             HttpMethod='PUT'

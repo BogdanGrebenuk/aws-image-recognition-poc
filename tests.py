@@ -53,7 +53,8 @@ class TestBlobS3Client(unittest.TestCase):  # pragma: no cover
             'put_object',
             Params={
                 'Bucket': self.bucket,
-                'Key': self.key
+                'Key': self.key,
+                'ContentType': 'application/octet-stream'
             },
             ExpiresIn=self.ttl,
             HttpMethod='PUT'
