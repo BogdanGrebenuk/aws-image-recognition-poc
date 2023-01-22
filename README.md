@@ -31,7 +31,7 @@ OTHER IaC tool.
 
 To upload local image, run following command:
 
-``curl -sX PUT --upload-file <path-to-your-file> "<pre-signed url>""``
+``curl -sX PUT --upload-file <path-to-your-file> -H "Content-Type: application/octet-stream" "<pre-signed url>""``
 
 ## Architecture
 
